@@ -24,6 +24,12 @@ const semesterToNumber = (ys: string): number => {
   return map[ys] || 0
 }
 
+const semNumToLabel = (n: number): string => {
+  if (n <= 0) return '입학 전'
+  if (n >= 9) return '졸업'
+  return `${Math.ceil(n / 2)}학년 ${n % 2 === 1 ? '1' : '2'}학기`
+}
+
 const toM = (year: number, month: number) => year * 12 + (month - 1)
 const fromM = (total: number) => ({ year: Math.floor(total / 12), month: (total % 12) + 1 })
 
@@ -37,8 +43,11 @@ const calculateFutureStatus = (
   const nowM = toM(now.getFullYear(), now.getMonth() + 1)
   const futureM = nowM + 36
 
+  const current = semesterToNumber(yearSemester)
+  if (current === 0) return ''
+
   let militaryBlockedMonths = 0
-  let militaryNote = ''
+  let militaryDetail = ''
 
   if (gender === '남') {
     if (militaryStatus === '입대 예정' && enlistYear && enlistMonth) {
@@ -46,58 +55,63 @@ const calculateFutureStatus = (
       const dM = eM + 18
       const dis = fromM(dM)
 
+      // 입대 시점에 몇 학기를 마쳤는지 계산
+      const monthsToEnlist = Math.max(0, eM - nowM)
+      const extraSems = Math.floor(monthsToEnlist / 6)
+      const lastSemBeforeEnlist = current + extraSems
+      const returnSem = lastSemBeforeEnlist + 1
+
       if (eM >= futureM) {
-        militaryNote = `아직 입대 전 (${enlistYear}년 ${enlistMonth}월 입대 예정)`
+        militaryDetail = `아직 입대 전 (${enlistYear}년 ${enlistMonth}월 입대 예정 / ${semNumToLabel(lastSemBeforeEnlist)} 마친 후 입대 예정 / ${dis.year}년 ${dis.month}월 전역 예정 / 전역 후 ${semNumToLabel(returnSem)} 복학 예정)`
         militaryBlockedMonths = 0
       } else if (dM > futureM) {
-        militaryNote = `군 복무 중 (${enlistYear}년 ${enlistMonth}월 입대, ${dis.year}년 ${dis.month}월 전역 예정)`
-        militaryBlockedMonths = futureM - eM
+        const monthsServing = futureM - eM
+        militaryDetail = `군 복무 중 (${enlistYear}년 ${enlistMonth}월 입대 / ${semNumToLabel(lastSemBeforeEnlist)} 수료 후 입대 / 현재 복무 ${monthsServing}개월차 / ${dis.year}년 ${dis.month}월 전역 예정 / 전역 후 ${semNumToLabel(returnSem)}으로 복학 예정)`
+        militaryBlockedMonths = monthsServing
       } else {
         const afterDis = futureM - dM
-        militaryNote = `전역 완료 (${dis.year}년 ${dis.month}월 전역, 전역 후 ${afterDis}개월 경과)`
+        militaryDetail = `전역 완료 (${enlistYear}년 ${enlistMonth}월 입대 / ${semNumToLabel(lastSemBeforeEnlist)} 수료 후 입대 / ${dis.year}년 ${dis.month}월 전역 / 현재 ${semNumToLabel(returnSem)} 복학 중 / 전역 후 ${afterDis}개월 경과)`
         militaryBlockedMonths = 18
       }
     } else if ((militaryStatus === '현역 복무 중' || militaryStatus === '공익/사회복무') && dischargeYear && dischargeMonth) {
       const dM = toM(parseInt(dischargeYear), parseInt(dischargeMonth))
+      const returnSem = current + 1
 
       if (dM >= futureM) {
-        militaryNote = `복무 중 (${dischargeYear}년 ${dischargeMonth}월 전역 예정)`
+        militaryDetail = `복무 중 (${dischargeYear}년 ${dischargeMonth}월 전역 예정 / 전역 후 ${semNumToLabel(returnSem)} 복학 예정)`
         militaryBlockedMonths = 36
       } else {
         const blocked = Math.max(0, dM - nowM)
         const afterDis = futureM - dM
-        militaryNote = `전역 완료 (${dischargeYear}년 ${dischargeMonth}월 전역, 전역 후 ${afterDis}개월 경과)`
+        militaryDetail = `전역 완료 (${dischargeYear}년 ${dischargeMonth}월 전역 / 현재 ${semNumToLabel(returnSem)} 복학 중 / 전역 후 ${afterDis}개월 경과)`
         militaryBlockedMonths = blocked
       }
     } else if (militaryStatus === '전역') {
-      militaryNote = '이미 전역 완료'
+      militaryDetail = '이미 전역 완료 / 복학 중'
     } else if (militaryStatus === '면제') {
-      militaryNote = '군 면제'
+      militaryDetail = '군 면제'
     }
   }
 
   const blockedSemesters = Math.round(militaryBlockedMonths / 6)
-  const current = semesterToNumber(yearSemester)
-  if (current === 0) return ''
-
   const undergradLeft = Math.max(0, 8 - current)
   const availableSemesters = 6 - blockedSemesters
   const postGradSemesters = availableSemesters - undergradLeft
 
-  let academicStatus = ''
+  // 복무 중이면 학업 상태 표시
+  if (militaryDetail.startsWith('군 복무 중') || militaryDetail.startsWith('복무 중')) {
+    return militaryDetail
+  }
 
+  let academicStatus = ''
   if (postGradSemesters <= 0) {
     const rem = Math.max(0, undergradLeft - availableSemesters)
-    academicStatus = rem > 0
-      ? `학부 재학 중 (졸업까지 약 ${rem}학기 남음)`
-      : '학부 졸업 무렵'
+    academicStatus = rem > 0 ? `학부 재학 중 (졸업까지 약 ${rem}학기 남음)` : '학부 졸업 무렵'
   } else if (careerIntention === '대학원 진학') {
     if (gradType === '석사') {
-      if (postGradSemesters <= 4) {
-        academicStatus = `석사 ${Math.ceil(postGradSemesters / 2)}학년 ${postGradSemesters % 2 === 1 ? '1' : '2'}학기 재학 중`
-      } else {
-        academicStatus = `석사 졸업 후 약 ${postGradSemesters - 4}학기 경과`
-      }
+      academicStatus = postGradSemesters <= 4
+        ? `석사 ${Math.ceil(postGradSemesters / 2)}학년 ${postGradSemesters % 2 === 1 ? '1' : '2'}학기 재학 중`
+        : `석사 졸업 후 약 ${postGradSemesters - 4}학기 경과`
     } else if (gradType === '석박통합') {
       academicStatus = `석박통합 ${Math.ceil(postGradSemesters / 2)}학년 ${postGradSemesters % 2 === 1 ? '1' : '2'}학기 재학 중`
     }
@@ -107,7 +121,7 @@ const calculateFutureStatus = (
     academicStatus = `학부 졸업 후 진로 탐색 중 (졸업 약 ${postGradSemesters}학기 경과)`
   }
 
-  return militaryNote ? `${academicStatus} | 군 복무: ${militaryNote}` : academicStatus
+  return militaryDetail ? `${academicStatus} / ${militaryDetail}` : academicStatus
 }
 
 export default function SurveyPage() {
@@ -210,7 +224,6 @@ export default function SurveyPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-lg max-w-lg w-full p-8">
-
         <div className="flex justify-end mb-4">
           <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
             <button onClick={() => setLang('ko')} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${lang === 'ko' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>한국어</button>
