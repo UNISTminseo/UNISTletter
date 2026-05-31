@@ -24,41 +24,90 @@ const semesterToNumber = (ys: string): number => {
   return map[ys] || 0
 }
 
-const calculateFutureStatus = (yearSemester: string, careerIntention: string, gradType: string): string => {
+const toM = (year: number, month: number) => year * 12 + (month - 1)
+const fromM = (total: number) => ({ year: Math.floor(total / 12), month: (total % 12) + 1 })
+
+const calculateFutureStatus = (
+  yearSemester: string, careerIntention: string, gradType: string,
+  gender: string, militaryStatus: string,
+  enlistYear: string, enlistMonth: string,
+  dischargeYear: string, dischargeMonth: string
+): string => {
+  const now = new Date()
+  const nowM = toM(now.getFullYear(), now.getMonth() + 1)
+  const futureM = nowM + 36
+
+  let militaryBlockedMonths = 0
+  let militaryNote = ''
+
+  if (gender === '남') {
+    if (militaryStatus === '입대 예정' && enlistYear && enlistMonth) {
+      const eM = toM(parseInt(enlistYear), parseInt(enlistMonth))
+      const dM = eM + 18
+      const dis = fromM(dM)
+
+      if (eM >= futureM) {
+        militaryNote = `아직 입대 전 (${enlistYear}년 ${enlistMonth}월 입대 예정)`
+        militaryBlockedMonths = 0
+      } else if (dM > futureM) {
+        militaryNote = `군 복무 중 (${enlistYear}년 ${enlistMonth}월 입대, ${dis.year}년 ${dis.month}월 전역 예정)`
+        militaryBlockedMonths = futureM - eM
+      } else {
+        const afterDis = futureM - dM
+        militaryNote = `전역 완료 (${dis.year}년 ${dis.month}월 전역, 전역 후 ${afterDis}개월 경과)`
+        militaryBlockedMonths = 18
+      }
+    } else if ((militaryStatus === '현역 복무 중' || militaryStatus === '공익/사회복무') && dischargeYear && dischargeMonth) {
+      const dM = toM(parseInt(dischargeYear), parseInt(dischargeMonth))
+
+      if (dM >= futureM) {
+        militaryNote = `복무 중 (${dischargeYear}년 ${dischargeMonth}월 전역 예정)`
+        militaryBlockedMonths = 36
+      } else {
+        const blocked = Math.max(0, dM - nowM)
+        const afterDis = futureM - dM
+        militaryNote = `전역 완료 (${dischargeYear}년 ${dischargeMonth}월 전역, 전역 후 ${afterDis}개월 경과)`
+        militaryBlockedMonths = blocked
+      }
+    } else if (militaryStatus === '전역') {
+      militaryNote = '이미 전역 완료'
+    } else if (militaryStatus === '면제') {
+      militaryNote = '군 면제'
+    }
+  }
+
+  const blockedSemesters = Math.round(militaryBlockedMonths / 6)
   const current = semesterToNumber(yearSemester)
   if (current === 0) return ''
-  const undergradLeft = Math.max(0, 8 - current)
-  const gradSemesters = 6 - undergradLeft
 
-  if (careerIntention === '대학원 진학') {
-    if (gradSemesters <= 0) {
-      const f = current + 6
-      return `아직 학부 ${Math.ceil(f / 2)}학년 ${f % 2 === 1 ? '1' : '2'}학기 재학 중 (졸업 전)`
-    }
+  const undergradLeft = Math.max(0, 8 - current)
+  const availableSemesters = 6 - blockedSemesters
+  const postGradSemesters = availableSemesters - undergradLeft
+
+  let academicStatus = ''
+
+  if (postGradSemesters <= 0) {
+    const rem = Math.max(0, undergradLeft - availableSemesters)
+    academicStatus = rem > 0
+      ? `학부 재학 중 (졸업까지 약 ${rem}학기 남음)`
+      : '학부 졸업 무렵'
+  } else if (careerIntention === '대학원 진학') {
     if (gradType === '석사') {
-      if (gradSemesters <= 4) {
-        return `석사 ${Math.ceil(gradSemesters / 2)}학년 ${gradSemesters % 2 === 1 ? '1' : '2'}학기 재학 중`
+      if (postGradSemesters <= 4) {
+        academicStatus = `석사 ${Math.ceil(postGradSemesters / 2)}학년 ${postGradSemesters % 2 === 1 ? '1' : '2'}학기 재학 중`
       } else {
-        return `석사 졸업 후 약 ${gradSemesters - 4}학기 경과`
+        academicStatus = `석사 졸업 후 약 ${postGradSemesters - 4}학기 경과`
       }
     } else if (gradType === '석박통합') {
-      return `석박통합 ${Math.ceil(gradSemesters / 2)}학년 ${gradSemesters % 2 === 1 ? '1' : '2'}학기 재학 중`
+      academicStatus = `석박통합 ${Math.ceil(postGradSemesters / 2)}학년 ${postGradSemesters % 2 === 1 ? '1' : '2'}학기 재학 중`
     }
   } else if (careerIntention === '취업') {
-    if (gradSemesters <= 0) {
-      const f = current + 6
-      return `아직 학부 ${Math.ceil(f / 2)}학년 ${f % 2 === 1 ? '1' : '2'}학기 재학 중 (졸업 전)`
-    }
-    return `학부 졸업 후 취업 약 ${gradSemesters}학기 경과`
+    academicStatus = `학부 졸업 후 취업 약 ${postGradSemesters}학기 경과`
   } else {
-    // 아직 모름
-    if (gradSemesters <= 0) {
-      const f = current + 6
-      return `아직 학부 ${Math.ceil(f / 2)}학년 ${f % 2 === 1 ? '1' : '2'}학기 재학 중 (졸업 전, 진로 미정)`
-    }
-    return `학부는 이미 졸업한 상태 (졸업 후 약 ${gradSemesters}학기 경과), 아직 진로 탐색 중`
+    academicStatus = `학부 졸업 후 진로 탐색 중 (졸업 약 ${postGradSemesters}학기 경과)`
   }
-  return ''
+
+  return militaryNote ? `${academicStatus} | 군 복무: ${militaryNote}` : academicStatus
 }
 
 export default function SurveyPage() {
@@ -67,8 +116,9 @@ export default function SurveyPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [form, setForm] = useState({
     name: '', age: '', studentId: '', yearSemester: '',
-    gender: '', militaryStatus: '', department: '',
-    careerIntention: '', gradType: '', postMasterPlan: '', careerGoal: '',
+    gender: '', militaryStatus: '', enlistYear: '', enlistMonth: '',
+    dischargeYear: '', dischargeMonth: '',
+    department: '', careerIntention: '', gradType: '', postMasterPlan: '', careerGoal: '',
   })
 
   useEffect(() => {
@@ -77,50 +127,69 @@ export default function SurveyPage() {
 
   const update = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }))
   const ko = lang === 'ko'
+  const currentYear = new Date().getFullYear()
 
-  const futurePreview = form.yearSemester && form.careerIntention &&
-    (form.careerIntention !== '대학원 진학' || form.gradType)
-    ? calculateFutureStatus(form.yearSemester, form.careerIntention, form.gradType)
-    : null
+  const futurePreview = (() => {
+    if (!form.yearSemester || !form.careerIntention) return null
+    if (form.careerIntention === '대학원 진학' && !form.gradType) return null
+    if (form.gender === '남') {
+      if (form.militaryStatus === '입대 예정' && (!form.enlistYear || !form.enlistMonth)) return null
+      if ((form.militaryStatus === '현역 복무 중' || form.militaryStatus === '공익/사회복무') && (!form.dischargeYear || !form.dischargeMonth)) return null
+    }
+    return calculateFutureStatus(
+      form.yearSemester, form.careerIntention, form.gradType,
+      form.gender, form.militaryStatus, form.enlistYear, form.enlistMonth,
+      form.dischargeYear, form.dischargeMonth
+    )
+  })()
 
   const showPostMasterPlan = futurePreview?.includes('석사 졸업 후')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (form.gender === '남' && !form.militaryStatus) {
-      alert(ko ? '군 복무 여부를 선택해주세요.' : 'Please select your military service status.')
-      return
+      alert(ko ? '군 복무 여부를 선택해주세요.' : 'Please select your military service status.'); return
+    }
+    if (form.gender === '남' && form.militaryStatus === '입대 예정' && (!form.enlistYear || !form.enlistMonth)) {
+      alert(ko ? '입대 예정 시기를 입력해주세요.' : 'Please enter your planned enlistment date.'); return
+    }
+    if (form.gender === '남' && (form.militaryStatus === '현역 복무 중' || form.militaryStatus === '공익/사회복무') && (!form.dischargeYear || !form.dischargeMonth)) {
+      alert(ko ? '전역 예정 시기를 입력해주세요.' : 'Please enter your expected discharge date.'); return
     }
     if (form.careerIntention === '대학원 진학' && !form.gradType) {
-      alert(ko ? '대학원 과정을 선택해주세요.' : 'Please select your graduate program type.')
-      return
+      alert(ko ? '대학원 과정을 선택해주세요.' : 'Please select your graduate program type.'); return
     }
     if (showPostMasterPlan && !form.postMasterPlan) {
-      alert(ko ? '석사 졸업 후 계획을 선택해주세요.' : 'Please select your post-master\'s plan.')
-      return
+      alert(ko ? '석사 졸업 후 계획을 선택해주세요.' : "Please select your post-master's plan."); return
     }
+
     setIsLoading(true)
-    const futureStatus = calculateFutureStatus(form.yearSemester, form.careerIntention, form.gradType)
+    const futureStatus = calculateFutureStatus(
+      form.yearSemester, form.careerIntention, form.gradType,
+      form.gender, form.militaryStatus, form.enlistYear, form.enlistMonth,
+      form.dischargeYear, form.dischargeMonth
+    )
+
     try {
       const { data, error } = await supabase
         .from('sessions')
         .insert([{
-          name: form.name,
-          age: parseInt(form.age),
-          student_id: form.studentId,
-          year_semester: form.yearSemester,
+          name: form.name, age: parseInt(form.age),
+          student_id: form.studentId, year_semester: form.yearSemester,
           gender: form.gender,
           military_status: form.gender === '남' ? form.militaryStatus : null,
+          enlist_year: form.enlistYear ? parseInt(form.enlistYear) : null,
+          enlist_month: form.enlistMonth ? parseInt(form.enlistMonth) : null,
+          discharge_year: form.dischargeYear ? parseInt(form.dischargeYear) : null,
+          discharge_month: form.dischargeMonth ? parseInt(form.dischargeMonth) : null,
           department: form.department,
           career_intention: form.careerIntention,
           grad_type: form.careerIntention === '대학원 진학' ? form.gradType : null,
           post_master_plan: showPostMasterPlan ? form.postMasterPlan : null,
           career_goal: form.careerGoal || null,
-          future_status: futureStatus,
-          language: lang,
+          future_status: futureStatus, language: lang,
         }])
-        .select()
-        .single()
+        .select().single()
       if (error) throw error
       sessionStorage.setItem('sessionId', data.id)
       sessionStorage.setItem('sessionData', JSON.stringify(data))
@@ -142,7 +211,6 @@ export default function SurveyPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-lg max-w-lg w-full p-8">
 
-        {/* 언어 토글 */}
         <div className="flex justify-end mb-4">
           <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
             <button onClick={() => setLang('ko')} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${lang === 'ko' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>한국어</button>
@@ -195,7 +263,9 @@ export default function SurveyPage() {
             <label className={labelClass}>{ko ? '성별' : 'Gender'}</label>
             <div className="flex gap-3">
               {[['남', 'Male'], ['여', 'Female']].map(([kv, ev]) => (
-                <button key={kv} type="button" onClick={() => update('gender', kv)} className={`flex-1 ${toggleClass(form.gender === kv)}`}>{ko ? kv : ev}</button>
+                <button key={kv} type="button"
+                  onClick={() => { update('gender', kv); update('militaryStatus', ''); update('enlistYear', ''); update('enlistMonth', ''); update('dischargeYear', ''); update('dischargeMonth', '') }}
+                  className={`flex-1 ${toggleClass(form.gender === kv)}`}>{ko ? kv : ev}</button>
               ))}
             </div>
           </div>
@@ -205,9 +275,61 @@ export default function SurveyPage() {
               <label className={labelClass}>{ko ? '군 복무 여부' : 'Military Service Status'}</label>
               <div className="grid grid-cols-2 gap-2">
                 {[['입대 예정','Planned'],['현역 복무 중','Serving'],['전역','Discharged'],['공익/사회복무','Social Service'],['면제','Exempt']].map(([kv, ev]) => (
-                  <button key={kv} type="button" onClick={() => update('militaryStatus', kv)} className={toggleClass(form.militaryStatus === kv)}>{ko ? kv : ev}</button>
+                  <button key={kv} type="button"
+                    onClick={() => { update('militaryStatus', kv); update('enlistYear', ''); update('enlistMonth', ''); update('dischargeYear', ''); update('dischargeMonth', '') }}
+                    className={toggleClass(form.militaryStatus === kv)}>{ko ? kv : ev}</button>
                 ))}
               </div>
+
+              {form.militaryStatus === '입대 예정' && (
+                <div className="mt-3 bg-gray-50 rounded-xl p-4">
+                  <label className="block text-sm text-gray-600 mb-2">{ko ? '입대 예정 시기' : 'Planned Enlistment Date'}</label>
+                  <div className="flex gap-2">
+                    <select className={`${inputClass} flex-1`} value={form.enlistYear} onChange={e => update('enlistYear', e.target.value)}>
+                      <option value="">{ko ? '년도' : 'Year'}</option>
+                      {Array.from({length: 6}, (_, i) => currentYear + i).map(y => (
+                        <option key={y} value={y}>{y}{ko ? '년' : ''}</option>
+                      ))}
+                    </select>
+                    <select className={`${inputClass} flex-1`} value={form.enlistMonth} onChange={e => update('enlistMonth', e.target.value)}>
+                      <option value="">{ko ? '월' : 'Month'}</option>
+                      {Array.from({length: 12}, (_, i) => i + 1).map(m => (
+                        <option key={m} value={m}>{m}{ko ? '월' : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {form.enlistYear && form.enlistMonth && (
+                    <p className="text-xs text-blue-600 mt-2">
+                      {ko ? '✅ 전역 예정: ' : '✅ Expected discharge: '}
+                      <strong>{(() => {
+                        const dis = fromM(toM(parseInt(form.enlistYear), parseInt(form.enlistMonth)) + 18)
+                        return `${dis.year}년 ${dis.month}월`
+                      })()}</strong>
+                      {ko ? ' (1년 6개월 복무)' : ' (18 months)'}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {(form.militaryStatus === '현역 복무 중' || form.militaryStatus === '공익/사회복무') && (
+                <div className="mt-3 bg-gray-50 rounded-xl p-4">
+                  <label className="block text-sm text-gray-600 mb-2">{ko ? '전역 예정 시기' : 'Expected Discharge Date'}</label>
+                  <div className="flex gap-2">
+                    <select className={`${inputClass} flex-1`} value={form.dischargeYear} onChange={e => update('dischargeYear', e.target.value)}>
+                      <option value="">{ko ? '년도' : 'Year'}</option>
+                      {Array.from({length: 5}, (_, i) => currentYear + i).map(y => (
+                        <option key={y} value={y}>{y}{ko ? '년' : ''}</option>
+                      ))}
+                    </select>
+                    <select className={`${inputClass} flex-1`} value={form.dischargeMonth} onChange={e => update('dischargeMonth', e.target.value)}>
+                      <option value="">{ko ? '월' : 'Month'}</option>
+                      {Array.from({length: 12}, (_, i) => i + 1).map(m => (
+                        <option key={m} value={m}>{m}{ko ? '월' : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -235,14 +357,13 @@ export default function SurveyPage() {
             </div>
           )}
 
-          {/* 석사 졸업 후 계획 (조건부 표시) */}
           {showPostMasterPlan && (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-2">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
               <label className="block text-sm font-medium text-blue-800 mb-2">
-                {ko ? '🎓 석사 졸업 후 계획은 무엇인가요?' : '🎓 What are your plans after completing your Master\'s?'}
+                {ko ? '🎓 석사 졸업 후 계획은 무엇인가요?' : "🎓 What are your plans after your Master's?"}
               </label>
               <div className="grid grid-cols-3 gap-2">
-                {[['취업 목표', 'Employment'], ['박사 진학', 'PhD'], ['모르겠음', 'Undecided']].map(([kv, ev]) => (
+                {[['취업 목표','Employment'],['박사 진학','PhD'],['모르겠음','Undecided']].map(([kv, ev]) => (
                   <button key={kv} type="button" onClick={() => update('postMasterPlan', kv)}
                     className={`py-2.5 rounded-xl border text-sm transition-colors ${form.postMasterPlan === kv ? 'bg-blue-500 text-white border-blue-500' : 'border-blue-200 text-blue-700 hover:bg-blue-100'}`}>
                     {ko ? kv : ev}
@@ -253,12 +374,9 @@ export default function SurveyPage() {
           )}
 
           {futurePreview && (
-            <div className="text-xs text-blue-700 bg-blue-50 rounded-lg px-3 py-2">
-              📍 {ko ? '3년 뒤 예상 상태: ' : '3-year forecast: '}
-              <strong>{futurePreview}</strong>
-              {showPostMasterPlan && form.postMasterPlan && (
-                <span className="ml-1">→ {ko ? form.postMasterPlan : ['취업 목표','박사 진학','모르겠음'].includes(form.postMasterPlan) ? {'취업 목표':'Employment','박사 진학':'PhD','모르겠음':'Undecided'}[form.postMasterPlan] : form.postMasterPlan}</span>
-              )}
+            <div className="text-xs text-blue-700 bg-blue-50 rounded-lg px-3 py-2 leading-relaxed">
+              📍 {ko ? '3년 뒤 예상 상태: ' : '3-year forecast: '}<strong>{futurePreview}</strong>
+              {showPostMasterPlan && form.postMasterPlan && <span> → {form.postMasterPlan}</span>}
             </div>
           )}
 
@@ -278,7 +396,7 @@ export default function SurveyPage() {
 
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
             <p className="font-semibold mb-1">⚠️ {ko ? '이용 전 주의사항' : 'Notice Before Use'}</p>
-            <p>{ko ? 'AI는 점쟁이가 아닙니다. 본 서비스는 진로 계획에 대한 가벼운 조언 정도로만 참고해주시고, 실제 진로 결정은 본인의 판단과 전문가의 조언을 따라주세요.' : 'AI is not a fortune teller. Please use this only as a light reference for career planning. Rely on your own judgment and professional advice for actual decisions.'}</p>
+            <p>{ko ? 'AI는 점쟁이가 아닙니다. 본 서비스는 진로 계획에 대한 가벼운 조언 정도로만 참고해주시고, 실제 진로 결정은 본인의 판단과 전문가의 조언을 따라주세요.' : 'AI is not a fortune teller. Please use this only as a light reference for career planning.'}</p>
           </div>
 
           <button type="submit" disabled={isLoading} className="w-full py-4 rounded-xl bg-blue-500 text-white font-medium hover:bg-blue-600 disabled:opacity-50">
