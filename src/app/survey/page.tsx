@@ -33,7 +33,7 @@ const calculateFutureStatus = (yearSemester: string, careerIntention: string, gr
   if (careerIntention === '대학원 진학') {
     if (gradSemesters <= 0) {
       const f = current + 6
-      return `학부 ${Math.ceil(f / 2)}학년 ${f % 2 === 1 ? '1' : '2'}학기 재학 중`
+      return `아직 학부 ${Math.ceil(f / 2)}학년 ${f % 2 === 1 ? '1' : '2'}학기 재학 중 (졸업 전)`
     }
     if (gradType === '석사') {
       if (gradSemesters <= 4) {
@@ -45,10 +45,20 @@ const calculateFutureStatus = (yearSemester: string, careerIntention: string, gr
       return `석박통합 ${Math.ceil(gradSemesters / 2)}학년 ${gradSemesters % 2 === 1 ? '1' : '2'}학기 재학 중`
     }
   } else if (careerIntention === '취업') {
-    if (gradSemesters <= 0) return `학부 ${Math.ceil((current + 6) / 2)}학년 재학 중`
+    if (gradSemesters <= 0) {
+      const f = current + 6
+      return `아직 학부 ${Math.ceil(f / 2)}학년 ${f % 2 === 1 ? '1' : '2'}학기 재학 중 (졸업 전)`
+    }
     return `학부 졸업 후 취업 약 ${gradSemesters}학기 경과`
+  } else {
+    // 아직 모름
+    if (gradSemesters <= 0) {
+      const f = current + 6
+      return `아직 학부 ${Math.ceil(f / 2)}학년 ${f % 2 === 1 ? '1' : '2'}학기 재학 중 (졸업 전, 진로 미정)`
+    }
+    return `학부는 이미 졸업한 상태 (졸업 후 약 ${gradSemesters}학기 경과), 아직 진로 탐색 중`
   }
-  return '진로 미정 상태에서 3년 경과'
+  return ''
 }
 
 export default function SurveyPage() {
@@ -58,7 +68,7 @@ export default function SurveyPage() {
   const [form, setForm] = useState({
     name: '', age: '', studentId: '', yearSemester: '',
     gender: '', militaryStatus: '', department: '',
-    careerIntention: '', gradType: '', careerGoal: '',
+    careerIntention: '', gradType: '', postMasterPlan: '', careerGoal: '',
   })
 
   useEffect(() => {
@@ -68,6 +78,13 @@ export default function SurveyPage() {
   const update = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }))
   const ko = lang === 'ko'
 
+  const futurePreview = form.yearSemester && form.careerIntention &&
+    (form.careerIntention !== '대학원 진학' || form.gradType)
+    ? calculateFutureStatus(form.yearSemester, form.careerIntention, form.gradType)
+    : null
+
+  const showPostMasterPlan = futurePreview?.includes('석사 졸업 후')
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (form.gender === '남' && !form.militaryStatus) {
@@ -76,6 +93,10 @@ export default function SurveyPage() {
     }
     if (form.careerIntention === '대학원 진학' && !form.gradType) {
       alert(ko ? '대학원 과정을 선택해주세요.' : 'Please select your graduate program type.')
+      return
+    }
+    if (showPostMasterPlan && !form.postMasterPlan) {
+      alert(ko ? '석사 졸업 후 계획을 선택해주세요.' : 'Please select your post-master\'s plan.')
       return
     }
     setIsLoading(true)
@@ -93,6 +114,7 @@ export default function SurveyPage() {
           department: form.department,
           career_intention: form.careerIntention,
           grad_type: form.careerIntention === '대학원 진학' ? form.gradType : null,
+          post_master_plan: showPostMasterPlan ? form.postMasterPlan : null,
           career_goal: form.careerGoal || null,
           future_status: futureStatus,
           language: lang,
@@ -115,11 +137,6 @@ export default function SurveyPage() {
   const labelClass = "block text-sm font-medium text-gray-700 mb-1.5"
   const toggleClass = (active: boolean) =>
     `py-2.5 rounded-xl border text-sm transition-colors ${active ? 'bg-blue-500 text-white border-blue-500' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`
-
-  const futurePreview = form.yearSemester && form.careerIntention &&
-    (form.careerIntention !== '대학원 진학' || form.gradType)
-    ? calculateFutureStatus(form.yearSemester, form.careerIntention, form.gradType)
-    : null
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -198,7 +215,9 @@ export default function SurveyPage() {
             <label className={labelClass}>{ko ? '졸업 후 진로 의향' : 'Post-graduation Career Plan'}</label>
             <div className="grid grid-cols-3 gap-2">
               {[['대학원 진학','Grad School'],['취업','Employment'],['아직 모름','Undecided']].map(([kv, ev]) => (
-                <button key={kv} type="button" onClick={() => { update('careerIntention', kv); update('gradType', '') }} className={toggleClass(form.careerIntention === kv)}>{ko ? kv : ev}</button>
+                <button key={kv} type="button"
+                  onClick={() => { update('careerIntention', kv); update('gradType', ''); update('postMasterPlan', '') }}
+                  className={toggleClass(form.careerIntention === kv)}>{ko ? kv : ev}</button>
               ))}
             </div>
           </div>
@@ -208,7 +227,26 @@ export default function SurveyPage() {
               <label className={labelClass}>{ko ? '대학원 과정' : 'Graduate Program Type'}</label>
               <div className="flex gap-3">
                 {[['석사', "Master's (2년)"], ['석박통합', 'Integrated MS-PhD (5-6년)']].map(([kv, ev]) => (
-                  <button key={kv} type="button" onClick={() => update('gradType', kv)} className={`flex-1 ${toggleClass(form.gradType === kv)}`}>{ko ? kv : ev}</button>
+                  <button key={kv} type="button"
+                    onClick={() => { update('gradType', kv); update('postMasterPlan', '') }}
+                    className={`flex-1 ${toggleClass(form.gradType === kv)}`}>{ko ? kv : ev}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 석사 졸업 후 계획 (조건부 표시) */}
+          {showPostMasterPlan && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-2">
+              <label className="block text-sm font-medium text-blue-800 mb-2">
+                {ko ? '🎓 석사 졸업 후 계획은 무엇인가요?' : '🎓 What are your plans after completing your Master\'s?'}
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[['취업 목표', 'Employment'], ['박사 진학', 'PhD'], ['모르겠음', 'Undecided']].map(([kv, ev]) => (
+                  <button key={kv} type="button" onClick={() => update('postMasterPlan', kv)}
+                    className={`py-2.5 rounded-xl border text-sm transition-colors ${form.postMasterPlan === kv ? 'bg-blue-500 text-white border-blue-500' : 'border-blue-200 text-blue-700 hover:bg-blue-100'}`}>
+                    {ko ? kv : ev}
+                  </button>
                 ))}
               </div>
             </div>
@@ -216,7 +254,11 @@ export default function SurveyPage() {
 
           {futurePreview && (
             <div className="text-xs text-blue-700 bg-blue-50 rounded-lg px-3 py-2">
-              📍 {ko ? '3년 뒤 예상 상태: ' : '3-year forecast: '}<strong>{futurePreview}</strong>
+              📍 {ko ? '3년 뒤 예상 상태: ' : '3-year forecast: '}
+              <strong>{futurePreview}</strong>
+              {showPostMasterPlan && form.postMasterPlan && (
+                <span className="ml-1">→ {ko ? form.postMasterPlan : ['취업 목표','박사 진학','모르겠음'].includes(form.postMasterPlan) ? {'취업 목표':'Employment','박사 진학':'PhD','모르겠음':'Undecided'}[form.postMasterPlan] : form.postMasterPlan}</span>
+              )}
             </div>
           )}
 
