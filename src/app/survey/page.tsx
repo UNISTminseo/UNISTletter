@@ -4,26 +4,11 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 const DEPARTMENTS = [
-  '기계공학과',
-  '지구환경도시건설공학과',
-  '반도체공학과',
-  '신소재공학과',
-  '반도체특성화융합전공',
-  '에너지화학공학과',
-  '원자력공학과',
-  '탄소중립 마이크로 전공',
-  '디자인학과',
-  '바이오메디컬공학과',
-  '산업공학과',
-  '생명과학과',
-  '의과학 마이크로 전공',
-  '전기전자공학과',
-  '컴퓨터공학과',
-  '물리학과',
-  '수리과학과',
-  '화학과',
-  '경영과학부',
-  '기타',
+  '기계공학과', '지구환경도시건설공학과', '반도체공학과', '신소재공학과',
+  '반도체특성화융합전공', '에너지화학공학과', '원자력공학과', '탄소중립 마이크로 전공',
+  '디자인학과', '바이오메디컬공학과', '산업공학과', '생명과학과',
+  '의과학 마이크로 전공', '전기전자공학과', '컴퓨터공학과',
+  '물리학과', '수리과학과', '화학과', '경영과학부', '기타',
 ]
 
 export default function SurveyPage() {
@@ -31,7 +16,8 @@ export default function SurveyPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [form, setForm] = useState({
     name: '', age: '', studentId: '', yearSemester: '',
-    gender: '', militaryStatus: '', department: '', careerIntention: '',
+    gender: '', militaryStatus: '', department: '',
+    careerIntention: '', careerGoal: '',
   })
 
   useEffect(() => {
@@ -61,6 +47,7 @@ export default function SurveyPage() {
           military_status: form.gender === '남' ? form.militaryStatus : null,
           department: form.department,
           career_intention: form.careerIntention,
+          career_goal: form.careerGoal || null,
         }])
         .select()
         .single()
@@ -154,7 +141,23 @@ export default function SurveyPage() {
             </div>
           </div>
 
-          <button type="submit" disabled={isLoading} className="w-full py-4 rounded-xl bg-blue-500 text-white font-medium hover:bg-blue-600 disabled:opacity-50 mt-2">
+          <div>
+            <label className={labelClass}>희망 세부 분야 또는 진로 목표 <span className="text-gray-400 font-normal">(선택)</span></label>
+            <textarea
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400 bg-gray-50 resize-none"
+              rows={3}
+              placeholder="예) AI 연구자, 반도체 설계 엔지니어, 스타트업 창업 등 자유롭게 적어주세요"
+              value={form.careerGoal}
+              onChange={e => update('careerGoal', e.target.value)}
+            />
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+            <p className="font-semibold mb-1">⚠️ 이용 전 주의사항</p>
+            <p>AI는 점쟁이가 아닙니다. 본 서비스는 진로 계획에 대한 가벼운 조언 정도로만 참고해주시고, 실제 진로 결정은 본인의 판단과 전문가의 조언을 따라주세요.</p>
+          </div>
+
+          <button type="submit" disabled={isLoading} className="w-full py-4 rounded-xl bg-blue-500 text-white font-medium hover:bg-blue-600 disabled:opacity-50">
             {isLoading ? '처리 중...' : '3년 뒤의 나와 대화하기 →'}
           </button>
         </form>
