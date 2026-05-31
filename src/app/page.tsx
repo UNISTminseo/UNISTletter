@@ -1,114 +1,59 @@
 'use client'
+import { useRouter } from 'next/navigation'
 
-import { useState } from 'react'
+export default function ConsentPage() {
+  const router = useRouter()
 
-type Message = {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-}
-
-export default function Home() {
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!input.trim() || isLoading) return
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: input,
-    }
-
-    setMessages((prev) => [...prev, userMessage])
-    setInput('')
-    setIsLoading(true)
-
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [...messages, userMessage].map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-        }),
-      })
-
-      const text = await response.text()
-      let content = ''
-      try {
-        const data = JSON.parse(text)
-        content = data.content
-      } catch {
-        content = text
-      }
-
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content,
-      }
-      setMessages((prev) => [...prev, assistantMessage])
-    } catch (error) {
-      console.error(error)
-    } finally {
-      setIsLoading(false)
-    }
+  const handleAgree = () => {
+    sessionStorage.setItem('consent', 'true')
+    router.push('/survey')
   }
 
   return (
-    <div className="flex flex-col h-screen max-w-2xl mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4 text-center">UNISTletter AI</h1>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-lg max-w-lg w-full p-8">
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold text-gray-800">UNISTletter</h1>
+          <p className="text-gray-500 mt-1 text-sm">3년 뒤의 나와 대화하기</p>
+        </div>
 
-      <div className="flex-1 overflow-y-auto space-y-4 mb-4">
-        {messages.length === 0 && (
-          <p className="text-center text-gray-400 mt-20">메시지를 입력해보세요!</p>
-        )}
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+        <h2 className="text-lg font-semibold text-gray-700 mb-4">개인정보 수집 및 이용 동의</h2>
+
+        <div className="bg-gray-50 rounded-xl p-5 mb-6 text-sm text-gray-600 space-y-3 max-h-72 overflow-y-auto leading-relaxed">
+          <div>
+            <p className="font-semibold text-gray-700 mb-1">수집 항목</p>
+            <p>이름, 나이, 학번, 학년/학기, 성별, 군 복무 여부(남학생), 학과, 진로 의향, 대화 내용</p>
+          </div>
+          <div>
+            <p className="font-semibold text-gray-700 mb-1">수집 목적</p>
+            <p>AI 기반 미래 자아 대화 서비스 제공을 위한 맞춤형 응답 생성</p>
+          </div>
+          <div>
+            <p className="font-semibold text-gray-700 mb-1">보유 기간</p>
+            <p>수집일로부터 <strong className="text-red-500">30일</strong> 후 자동 삭제됩니다.</p>
+          </div>
+          <div>
+            <p className="font-semibold text-gray-700 mb-1">이용 제한</p>
+            <p>수집된 정보는 <strong>AI 학습에 이용되지 않으며</strong>, 본 세션 내 서비스 제공 목적으로만 사용됩니다. 제3자에게 제공되지 않습니다.</p>
+          </div>
+          <p className="text-xs text-gray-400 pt-1">동의를 거부할 권리가 있으나, 동의 거부 시 서비스 이용이 제한됩니다.</p>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={() => alert('서비스를 이용하시려면 동의가 필요합니다.')}
+            className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm"
           >
-            <div
-              className={`max-w-[80%] rounded-2xl px-4 py-2 ${
-                message.role === 'user'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-100 text-gray-800'
-              }`}
-            >
-              {message.content}
-            </div>
-          </div>
-        ))}
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-100 rounded-2xl px-4 py-2 text-gray-500">
-              답변 생성 중...
-            </div>
-          </div>
-        )}
+            동의하지 않음
+          </button>
+          <button
+            onClick={handleAgree}
+            className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-medium hover:bg-blue-600 text-sm"
+          >
+            동의합니다
+          </button>
+        </div>
       </div>
-
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="메시지를 입력하세요..."
-          className="flex-1 border border-gray-300 rounded-full px-4 py-2 focus:outline-none focus:border-blue-500"
-        />
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="bg-blue-500 text-white rounded-full px-6 py-2 disabled:opacity-50 hover:bg-blue-600"
-        >
-          전송
-        </button>
-      </form>
     </div>
   )
 }
