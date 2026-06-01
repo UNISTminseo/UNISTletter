@@ -8,6 +8,9 @@ export default function AdminPage() {
   const [selected, setSelected] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showTranslation, setShowTranslation] = useState(false)
+  const [translations, setTranslations] = useState<{ [sessionId: string]: string[] }>({})
+  const [isTranslating, setIsTranslating] = useState(false)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -24,6 +27,42 @@ export default function AdminPage() {
       setIsAuthenticated(true)
     } catch { setError('오류가 발생했습니다.') }
     finally { setIsLoading(false) }
+  }
+
+  const handleSelectSession = (session: any) => {
+    setSelected(session)
+    setShowTranslation(false)
+  }
+
+  const handleTranslate = async () => {
+    if (!selected) return
+
+    // 이미 번역된 경우 토글만
+    if (translations[selected.id]) {
+      setShowTranslation(prev => !prev)
+      return
+    }
+
+    const messages = selected.chat_messages || []
+    if (messages.length === 0) return
+
+    setIsTranslating(true)
+    try {
+      const texts = messages.map((m: any) => m.content)
+      const res = await fetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texts, password }),
+      })
+      const data = await res.json()
+      setTranslations(prev => ({ ...prev, [selected.id]: data.translations }))
+      setShowTranslation(true)
+    } catch (err) {
+      console.error(err)
+      alert('번역 중 오류가 발생했습니다.')
+    } finally {
+      setIsTranslating(false)
+    }
   }
 
   if (!isAuthenticated) return (
@@ -52,9 +91,10 @@ export default function AdminPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* 세션 목록 */}
           <div className="space-y-2">
             {sessions.map((s: any) => (
-              <div key={s.id} onClick={() => setSelected(s)}
+              <div key={s.id} onClick={() => handleSelectSession(s)}
                 className={`bg-white rounded-xl p-4 cursor-pointer border-2 transition-colors ${selected?.id === s.id ? 'border-blue-500' : 'border-transparent hover:border-gray-200'}`}>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">{s.name[0]}</div>
@@ -69,9 +109,11 @@ export default function AdminPage() {
             {sessions.length === 0 && <p className="text-center text-gray-400 py-8">세션이 없습니다.</p>}
           </div>
 
+          {/* 대화 내역 */}
           <div className="lg:col-span-2">
             {selected ? (
               <div className="bg-white rounded-xl p-6 shadow-sm">
+                {/* 세션 정보 */}
                 <div className="mb-4 pb-4 border-b">
                   <h2 className="text-lg font-semibold mb-2">{selected.name}</h2>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-600">
@@ -81,17 +123,47 @@ export default function AdminPage() {
                     <p>학년: {selected.year_semester}</p>
                     <p>진로: {selected.career_intention}</p>
                     {selected.military_status && <p>군복무: {selected.military_status}</p>}
+                    {selected.career_goal && <p className="col-span-2">진로 목표: {selected.career_goal}</p>}
+                    {selected.future_status && <p className="col-span-2 text-blue-600">3년 뒤: {selected.future_status}</p>}
                     <p className="text-gray-400 text-xs col-span-2">참여일: {new Date(selected.created_at).toLocaleString('ko-KR')}</p>
                   </div>
                 </div>
+
+                {/* 번역 토글 버튼 */}
+                {selected.chat_messages?.length > 0 && (
+                  <div className="flex justify-end mb-3">
+                    <button
+                      onClick={handleTranslate}
+                      disabled={isTranslating}
+                      className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                        showTranslation
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      } disabled:opacity-50`}
+                    >
+                      {isTranslating ? '번역 중...' : showTranslation ? '🌐 영어 번역 중' : '🌐 영어로 번역'}
+                    </button>
+                  </div>
+                )}
+
+                {/* 메시지 목록 */}
                 <div className="space-y-3 max-h-[500px] overflow-y-auto">
-                  {selected.chat_messages?.length > 0 ? selected.chat_messages.map((msg: any) => (
-                    <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[80%] rounded-xl px-4 py-2 text-sm whitespace-pre-wrap ${msg.role === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-800'}`}>
-                        {msg.content}
+                  {selected.chat_messages?.length > 0 ? selected.chat_messages.map((msg: any, idx: number) => {
+                    const translatedText = showTranslation && translations[selected.id]?.[idx]
+                    return (
+                      <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[80%] rounded-xl px-4 py-2 text-sm whitespace-pre-wrap ${msg.role === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-800'}`}>
+                          {translatedText ? (
+                            <div>
+                              <p className="opacity-70 text-xs mb-1">{ko_label(msg.role)}</p>
+                              <p>{translatedText}</p>
+                              <p className="mt-2 pt-2 border-t border-white/20 opacity-60 text-xs">{msg.content}</p>
+                            </div>
+                          ) : msg.content}
+                        </div>
                       </div>
-                    </div>
-                  )) : <p className="text-center text-gray-400 py-8">대화 내역이 없습니다.</p>}
+                    )
+                  }) : <p className="text-center text-gray-400 py-8">대화 내역이 없습니다.</p>}
                 </div>
               </div>
             ) : (
@@ -104,4 +176,8 @@ export default function AdminPage() {
       </div>
     </div>
   )
+}
+
+function ko_label(role: string) {
+  return role === 'user' ? '사용자 (원문)' : 'AI (원문)'
 }
