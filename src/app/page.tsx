@@ -39,8 +39,8 @@ export default function ConsentPage() {
           <div className="bg-blue-50 rounded-lg p-3 text-blue-700 text-xs">
             <p className="font-semibold mb-1">📌 {ko ? '서비스 소개' : 'About This Service'}</p>
             <p>{ko
-              ? '본 웹페이지는 유니스트(UNIST) PSC(Problem Solving and Communication) 수업의 일환으로 G4 팀이 직접 제작하였습니다.'
-              : 'This webpage was created by Team G4 as part of the PSC (Problem Solving and Communication) course at UNIST.'}</p>
+              ? '본 웹페이지는 유니스트(UNIST) PSC(Personality_ Self_ and Communication: Intrapersonal Communication) 수업의 일환으로 G4 팀이 직접 제작하였습니다.'
+              : 'This webpage was created by Team G4 as part of the PSC (Personality, Self, and Communication: Intrapersonal Communication) course at UNIST.'}</p>
           </div>
 
           <div>
