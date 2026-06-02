@@ -92,34 +92,45 @@ const calculateFutureStatus = (
         militaryBlockedMonths = 18
       }
     } else if (militaryStatus === '전문연구원' && enlistYear && enlistMonth) {
-      const sM = toM(parseInt(enlistYear), parseInt(enlistMonth))
-      const phase1End = sM + 24
-      const endM = sM + 36
-      const p1 = fromM(phase1End)
-      const end = fromM(endM)
+      // enlistYear/Month = 대학원 입학 시기
+      // 전문연 시작 = 대학원 입학 + 2년
+      // 전문연 종료 = 전문연 시작 + 3년
+      const gradStartM = toM(parseInt(enlistYear), parseInt(enlistMonth))
+      const resStartM = gradStartM + 24   // 전문연 시작
+      const phase1EndM = resStartM + 24   // Phase 1 끝 (전문연 시작 + 2년)
+      const resEndM = resStartM + 36      // 전문연 종료 (전문연 시작 + 3년)
 
-      if (sM >= futureM) {
+      const resStart = fromM(resStartM)
+      const p1End = fromM(phase1EndM)
+      const resEnd = fromM(resEndM)
+
+      if (resStartM > futureM) {
+        // 아직 전문연 시작 전 — 대학원 재학 중
+        const moInGrad = futureM - gradStartM
         militaryDetail = L === 'en'
-          ? `Research Professional not yet started (Planned: ${enlistYear}/${enlistMonth} / Phase 1: home lab 2yrs (PhD) → Phase 2: external lab 1yr)`
-          : `전문연구원 아직 시작 전 (${enlistYear}년 ${enlistMonth}월 시작 예정 / Phase 1: 소속 연구실 2년(박사과정 포함) → Phase 2: 외부 연구기관 1년)`
+          ? `In PhD program (${moInGrad}mo since enrollment / Research Professional starts ${resStart.year}/${resStart.month})`
+          : `박사과정 재학 중 (입학 후 ${moInGrad}개월 / 전문연구원 시작 예정: ${resStart.year}년 ${resStart.month}월)`
         militaryBlockedMonths = 0
-      } else if (futureM < phase1End) {
-        const mo = futureM - sM
+      } else if (futureM <= phase1EndM) {
+        // Phase 1: 소속 연구실 (박사과정 포함)
+        const moInPhase1 = futureM - resStartM
         militaryDetail = L === 'en'
-          ? `Research Professional Phase 1 (home lab / part of PhD / ${mo}mo in / until ${p1.year}/${p1.month} / then 1yr external lab)`
-          : `전문연구원 Phase 1 복무 중 (소속 연구실 / 박사과정 포함 / 시작 후 ${mo}개월 / ${p1.year}년 ${p1.month}월까지 / 이후 외부 연구기관 1년 추가)`
+          ? `Research Professional Phase 1 (home lab / counted in PhD / ${moInPhase1}mo in / Phase 2 from ${p1End.year}/${p1End.month})`
+          : `전문연구원 Phase 1 복무 중 (소속 연구실 / 박사과정 포함 / 시작 후 ${moInPhase1}개월 / Phase 2: ${p1End.year}년 ${p1End.month}월부터 외부 연구기관)`
         militaryBlockedMonths = 0
-      } else if (futureM < endM) {
-        const mo2 = futureM - phase1End
+      } else if (futureM < resEndM) {
+        // Phase 2: 외부 연구기관
+        const moInPhase2 = futureM - phase1EndM
         militaryDetail = L === 'en'
-          ? `Research Professional Phase 2 (external lab / ${mo2}mo in / ends ${end.year}/${end.month})`
-          : `전문연구원 Phase 2 복무 중 (외부 연구기관 / ${mo2}개월 경과 / ${end.year}년 ${end.month}월 완료 예정)`
-        militaryBlockedMonths = mo2
+          ? `Research Professional Phase 2 (external lab / ${moInPhase2}mo in / ends ${resEnd.year}/${resEnd.month})`
+          : `전문연구원 Phase 2 복무 중 (외부 연구기관 / ${moInPhase2}개월 경과 / 종료: ${resEnd.year}년 ${resEnd.month}월)`
+        militaryBlockedMonths = moInPhase2
       } else {
-        const after = futureM - endM
+        // 전문연 완료
+        const after = futureM - resEndM
         militaryDetail = L === 'en'
-          ? `Research Professional completed (${end.year}/${end.month} / ${after}mo since)`
-          : `전문연구원 복무 완료 (${end.year}년 ${end.month}월 완료 / 완료 후 ${after}개월 경과)`
+          ? `Research Professional completed (ended ${resEnd.year}/${resEnd.month} / ${after}mo since)`
+          : `전문연구원 복무 완료 (${resEnd.year}년 ${resEnd.month}월 종료 / 완료 후 ${after}개월 경과)`
         militaryBlockedMonths = 12
       }
     } else if (militaryStatus === '병역 완료') {
@@ -137,7 +148,8 @@ const calculateFutureStatus = (
   const postGradSemesters = availableSemesters - undergradLeft
 
   if (militaryDetail.includes('복무 중') || militaryDetail.includes('Currently serving') ||
-      militaryDetail.includes('Phase 1') || militaryDetail.includes('Phase 2')) {
+      militaryDetail.includes('Phase 1') || militaryDetail.includes('Phase 2') ||
+      militaryDetail.includes('박사과정 재학') || militaryDetail.includes('In PhD program')) {
     return militaryDetail
   }
 
@@ -216,7 +228,7 @@ export default function SurveyPage() {
       alert(ko ? '입대 예정 시기를 입력해주세요.' : 'Please enter your planned enlistment date.'); return
     }
     if (form.gender === '남' && form.militaryStatus === '전문연구원' && (!form.enlistYear || !form.enlistMonth)) {
-      alert(ko ? '전문연구원 시작 예정 시기를 입력해주세요.' : 'Please enter your planned Research Professional start date.'); return
+      alert(ko ? '대학원 입학 예정 시기를 입력해주세요.' : 'Please enter your planned graduate school enrollment date.'); return
     }
     if (form.careerIntention === '대학원 진학' && !form.gradType) {
       alert(ko ? '대학원 과정을 선택해주세요.' : 'Please select your graduate program type.'); return
@@ -381,15 +393,17 @@ export default function SurveyPage() {
                 </div>
               )}
 
-              {/* 전문연구원 시작 날짜 */}
+              {/* 전문연구원 — 대학원 입학 시기 입력 */}
               {form.militaryStatus === '전문연구원' && (
                 <div className="mt-3 bg-purple-50 border border-purple-200 rounded-xl p-4">
                   <p className="text-xs text-purple-700 mb-3">
                     💡 {ko
-                      ? '전문연구원은 박사과정 시작과 함께 시작됩니다. Phase 1 (소속 연구실 2년, 박사과정에 포함) → Phase 2 (외부 연구기관 1년)'
-                      : 'Starts with the PhD program. Phase 1 (home lab 2yrs, included in PhD) → Phase 2 (external lab 1yr)'}
+                      ? '전문연구원은 대학원 입학 후 2년 뒤에 시작되며, 총 3년간 복무합니다.'
+                      : 'Research Professional starts 2 years after grad school enrollment and lasts 3 years total.'}
                   </p>
-                  <label className="block text-sm text-gray-600 mb-2">{ko ? '전문연구원 시작 예정 시기' : 'Planned Start Date'}</label>
+                  <label className="block text-sm text-gray-600 mb-2">
+                    {ko ? '대학원 입학 예정 시기' : 'Planned Graduate School Enrollment Date'}
+                  </label>
                   <div className="flex gap-2">
                     <select className={`${inputClass} flex-1`} value={form.enlistYear} onChange={e => update('enlistYear', e.target.value)}>
                       <option value="">{ko ? '년도' : 'Year'}</option>
@@ -403,12 +417,14 @@ export default function SurveyPage() {
                   {form.enlistYear && form.enlistMonth && (
                     <div className="mt-2 text-xs text-purple-600 space-y-0.5">
                       {(() => {
-                        const sM = toM(parseInt(form.enlistYear), parseInt(form.enlistMonth))
-                        const p1 = fromM(sM + 24)
-                        const end = fromM(sM + 36)
+                        const gradM = toM(parseInt(form.enlistYear), parseInt(form.enlistMonth))
+                        const resStart = fromM(gradM + 24)
+                        const p1End = fromM(gradM + 48)
+                        const resEnd = fromM(gradM + 60)
                         return <>
-                          <p>📍 Phase 1: {form.enlistYear}{ko ? '년 ' : '/'}{form.enlistMonth}{ko ? '월' : ''} ~ {p1.year}{ko ? '년 ' : '/'}{p1.month}{ko ? '월 (소속 연구실, 박사과정 포함)' : ' (home lab, PhD)'}</p>
-                          <p>📍 Phase 2: {p1.year}{ko ? '년 ' : '/'}{p1.month}{ko ? '월' : ''} ~ {end.year}{ko ? '년 ' : '/'}{end.month}{ko ? '월 (외부 연구기관)' : ' (external lab)'}</p>
+                          <p>📍 {ko ? `전문연 시작: ${resStart.year}년 ${resStart.month}월 (대학원 입학 후 2년)` : `Research Professional starts: ${resStart.year}/${resStart.month} (2yrs after enrollment)`}</p>
+                          <p>📍 {ko ? `Phase 1 종료: ${p1End.year}년 ${p1End.month}월 (소속 연구실 2년)` : `Phase 1 ends: ${p1End.year}/${p1End.month} (2yrs home lab)`}</p>
+                          <p>📍 {ko ? `Phase 2 종료: ${resEnd.year}년 ${resEnd.month}월 (외부 연구기관 1년)` : `Phase 2 ends: ${resEnd.year}/${resEnd.month} (1yr external lab)`}</p>
                         </>
                       })()}
                     </div>
