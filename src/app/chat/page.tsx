@@ -59,10 +59,7 @@ export default function ChatPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: newMessages.map(m => ({ role: m.role, content: m.content })),
-          sessionData,
-          sessionId,
-          isInit: false,
-          userMessage: text,
+          sessionData, sessionId, isInit: false, userMessage: text,
         }),
       })
       const data = await response.json()
@@ -71,6 +68,9 @@ export default function ChatPage() {
     finally { setIsLoading(false) }
   }
 
+  const ko = sessionData?.language !== 'en'
+  const futureAge = sessionData?.age ? sessionData.age + 3 : ''
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       <div className="bg-white shadow-sm px-4 py-3 flex items-center gap-3">
@@ -78,16 +78,18 @@ export default function ChatPage() {
           {sessionData?.name?.[0] || '?'}
         </div>
         <div>
-          <p className="font-semibold text-gray-800">3년 뒤의 {sessionData?.name || '나'}</p>
-          <p className="text-xs text-gray-500">{sessionData?.department} · {sessionData?.age ? sessionData.age + 3 : ''}살</p>
+          <p className="font-semibold text-gray-800">
+            {ko ? `3년 뒤의 ${sessionData?.name || ''}` : `Future ${sessionData?.name || ''} (3 years later)`}
+          </p>
+          <p className="text-xs text-gray-500">{sessionData?.department} · {futureAge}{ko ? '살' : ' yrs'}</p>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.map(msg => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-              msg.role === 'user' ? 'bg-blue-500 text-white rounded-br-sm' : 'bg-white text-gray-800 shadow-sm rounded-bl-sm'
+            <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap text-gray-900 ${
+              msg.role === 'user' ? 'bg-blue-500 text-white rounded-br-sm' : 'bg-white shadow-sm rounded-bl-sm'
             }`}>
               {msg.content}
             </div>
@@ -110,11 +112,12 @@ export default function ChatPage() {
           <input
             value={input}
             onChange={e => setInput(e.target.value)}
-            placeholder="미래의 나에게 물어보세요..."
-            className="flex-1 border border-gray-200 rounded-full px-4 py-3 text-sm focus:outline-none focus:border-blue-400 bg-gray-50"
+            placeholder={ko ? '미래의 나에게 물어보세요...' : 'Ask your future self...'}
+            className="flex-1 border border-gray-200 rounded-full px-4 py-3 text-sm text-gray-900 focus:outline-none focus:border-blue-400 bg-gray-50"
           />
-          <button type="submit" disabled={isLoading || !input.trim()} className="bg-blue-500 text-white rounded-full px-5 py-3 text-sm font-medium disabled:opacity-50 hover:bg-blue-600">
-            전송
+          <button type="submit" disabled={isLoading || !input.trim()}
+            className="bg-blue-500 text-white rounded-full px-5 py-3 text-sm font-medium disabled:opacity-50 hover:bg-blue-600">
+            {ko ? '전송' : 'Send'}
           </button>
         </form>
       </div>
